@@ -3,11 +3,56 @@ import { Mission, Text, User, Mail } from './mongo.js'
 import { bot } from './bot.js';
 import { Telegraf, Markup, Scenes, session } from 'telegraf';
 import { dateMSK, nowStage, nowStageAi, setStart, findActiveMission, sendMessageNow, newMail, stopJob, checkForPormo } from './myfunc.js';
+import { addTextToImage } from './sharp.js'
 // import { wizardryScene } from './scene.js';
 import { Axios } from 'axios';
 export const formJobs = new FormJobs()
 formJobs.initialize(bot)
 
+class Queue {
+    constructor() {
+        this.items = [];
+        this.processing = false;
+    }
+
+    enqueue(element) {
+        this.items.push(element);
+        if (!this.processing) {
+            this.processNext();
+        }
+    }
+
+    dequeue() {
+        return this.items.shift();
+    }
+
+    processNext() {
+        if (this.isEmpty()) {
+            this.processing = false;
+            return;
+        }
+
+        const element = this.dequeue();
+        this.processing = true;
+        this.processElement(element);
+    }
+
+    processElement(element) {
+        // обработка переменной
+        console.log("обработка переменной:", element);
+
+        //  логика обработки 
+
+        //  обработка следующей
+        this.processNext();
+    }
+
+    isEmpty() {
+        return this.items.length === 0;
+    }
+}
+
+const queue = new Queue();
 
 
 bot.start(async (ctx) => {
@@ -97,9 +142,11 @@ bot.action('ai', async (ctx) => {
     const mess = await Text.findOne({ stage: stage })
     if (dbuser.ban) { }
     if (!dbuser.ban) {
+        queue.enqueue(ZNACHENIE)
         await ctx.reply(mess.text[0])
     }
 })
+
 
 bot.action(['mission', 'closed'], async (ctx) => {
     const stage = "mission";
@@ -283,6 +330,7 @@ bot.action("mail-yes", async (ctx) => {
 
 
 
+
 bot.on("photo", async (ctx) => {
     const dbuser = await User.findOne({ userid: ctx.message.from.id })
     let fileid = 0
@@ -298,7 +346,19 @@ bot.on("photo", async (ctx) => {
 
         if (dbuser.stage == "ai") {
             const mess = await Text.findOne({ stage: "ai" })
-
+            try {
+                const filePath = await bot.telegram.getFileLink(fileid).then((link) => link.href);
+                const text = 'тут текст случайный';
+                const outputPath = `./user/${dbuser.userid}/${dbuser.userid}.jpg`;
+                // Сохранение исходной картинки
+                const originalImagePath = `./user/${dbuser.userid}/original.jpg`;
+                await sharp(filePath).toFile(originalImagePath);
+                await addTextToImage(originalImagePath, text, outputPath);
+                // Отправка результирующего изображения пользователю
+                await ctx.replyWithPhoto({ source: outputPath });
+            } catch (error) {
+                console.error('Ошибка при обработке изображения:', error);
+            }
             await ctx.reply(mess.text[1], {
                 parse_mode: "HTML",
                 ...Markup.inlineKeyboard([
