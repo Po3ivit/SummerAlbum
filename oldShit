@@ -1,0 +1,109 @@
+старая хуйня про рандом
+const availableMissions = Object.entries(dbuser.missions).filter(([number, mission]) => mission.haveNow && !mission.complete);
+const randomMissions = availableMissions.sort(() => Math.random() - 0.5).slice(0, 3);
+
+if (randomMissions.length < 3) {
+    const remainingMissions = Object.entries(dbuser.missions).filter(([number, mission]) => !mission.haveNow && !mission.complete);
+    const additionalMissions = remainingMissions.sort(() => Math.random() - 0.5).slice(0, 3 - randomMissions.length);
+    randomMissions.push(...additionalMissions);
+}
+
+const buttons = randomMissions.map(async ([number, mission]) => {
+    const missionText = await Mission.findOne({ number: number });
+    const button = [Markup.button.callback(missionText.button, `mission_${number}`)];
+    dbuser.missions[number].haveNow = true;
+    return button;
+});
+
+
+
+часть про заркыть 
+if (missionNumber) {
+    if (!dbuser.missions[missionNumber].closed) {
+        const missionActive = await findActiveMission(dbuser)
+        if (missionNumber == missionActive) {
+            console.log(dbuser.missions[missionNumber].closed)
+            await stopJob(dbuser.userid)
+            dbuser.haveActiveMission = false
+            dbuser.missions[missionNumber].active = false
+            dbuser.missions[missionNumber].closed = true
+            await dbuser.markModified('missions')
+            await dbuser.save()
+        }
+    }
+
+}
+
+/ Обработка нажатия на кнопку миссии
+bot.action(/mission_\d+/, async (ctx) => {
+    const dbuser = await nowStage(ctx, ctx.match[0])
+    const missionNumber = ctx.match[0].split("_")[1];
+    if (dbuser.haveActiveMission) {
+        if (dbuser.missions[missionNumber].modering) {
+            const mess = await Text.findOne({ stage: "mission" });
+            await ctx.reply(mess.text[3])
+        }
+        if (!dbuser.missions[missionNumber].modering) {
+
+
+            const activeMission = await findActiveMission(dbuser)
+
+            const missionText = await Mission.findOne({ number: activeMission });
+
+            if (missionNumber == activeMission) {
+
+
+                ctx.editMessageText(missionText.text, {
+                    parse_mode: "HTML",
+                    ...Markup.inlineKeyboard([
+                        Markup.button.callback("Принять", "start"),
+                        Markup.button.callback("Чит-код", "cheat"),
+                        Markup.button.callback("Закрыть", `closed`)
+                    ])
+                })
+
+
+            }
+
+            if (missionNumber !== activeMission) {
+                await ctx.reply("Эти задания пока недоступны, потому что вы уже взяли одно на сегодня. Сначала выполните его, а потом сможете приступить к другим.", {
+                    parse_mode: "HTML",
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback("Перейти к заданию", `mission_${activeMission}`)]])
+                })
+            }
+        }
+    }
+
+    if (!dbuser.haveActiveMission) {
+        if (dbuser.missions[missionNumber].modering) {
+            const mess = await Text.findOne({ stage: "mission" });
+            await ctx.reply(mess.text[3])
+        }
+        if (!dbuser.missions[missionNumber].modering) {
+            // Находим выбранную миссию по номеру
+            const selectedMission = await Mission.findOne({ number: missionNumber });
+            // Отправляем сообщение с текстом выбранной миссии
+
+            await ctx.ctx.editMessageText(selectedMission.text, {
+                parse_mode: "HTML",
+                ...Markup.inlineKeyboard([
+                    Markup.button.callback("В меню", "start"),
+                    Markup.button.callback("Чит-код", "cheat"),
+                    Markup.button.callback("Закрыть", `closed_${missionNumber}`)])
+            })
+
+
+
+
+            // console.log(dbuser)
+            dbuser.text = selectedMission.text
+            dbuser.haveActiveMission = true;
+            dbuser.missions[missionNumber].active = true;
+            await formJobs.formJob(dbuser.userid)
+            await dbuser.markModified('missions')
+            await dbuser.save()
+        }
+    }
+
+});
