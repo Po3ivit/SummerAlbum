@@ -2,10 +2,13 @@ import { FormJobs } from './job.js';
 import { Mission, Text, User, Mail } from './mongo.js'
 import { bot } from './bot.js';
 import { Telegraf, Markup, Scenes, session } from 'telegraf';
-import { dateMSK, nowStage, nowStageAi, setStart, findActiveMission, sendMessageNow, newMail, stopJob, checkForPormo } from './myfunc.js';
-import { addTextToImage } from './sharp.js'
-// import { wizardryScene } from './scene.js';
-import { Axios } from 'axios';
+import { dateMSK, nowStage, nowStageAi, setStart, findActiveMission, sendMessageNow, newMail, stopJob, checkForPormo, blogerShit } from './myfunc.js';
+import fs from 'fs';
+import Jimp from 'jimp';
+import fetch from 'node-fetch';
+import stream from 'stream';
+import streamifier from 'streamifier';
+// import { Axios } from 'axios';
 export const formJobs = new FormJobs()
 formJobs.initialize(bot)
 
@@ -66,9 +69,9 @@ bot.start(async (ctx) => {
             await ctx.reply(mess.text[1], {
                 parse_mode: "HTML", disable_web_page_preview: true,
                 ...Markup.inlineKeyboard([
+                    [Markup.button.callback("Узнать правила", "rules0")],
                     [Markup.button.callback("Перейти к заданиям", "mission")],
                     [Markup.button.callback("Играть с Нейросетью", "ai")],
-                    [Markup.button.callback("Узнать правила", "rules0")],
                     [Markup.button.callback("Moder", "Moder-00")]])
             })
         }
@@ -94,9 +97,9 @@ bot.action('start', async (ctx) => {
         await ctx.reply(mess.text[1], {
             parse_mode: "HTML", disable_web_page_preview: true,
             ...Markup.inlineKeyboard([
+                [Markup.button.callback("Узнать правила", "rules0")],
                 [Markup.button.callback("Перейти к заданиям", "mission")],
-                [Markup.button.callback("Играть с Нейросетью", "ai")],
-                [Markup.button.callback("Узнать правила", "rules0")]])
+                [Markup.button.callback("Играть с Нейросетью", "ai")]])
         })
     }
 })
@@ -108,10 +111,10 @@ bot.action(['rules0', 'rules1'], async (ctx) => {
     if (dbuser.ban) { }
     if (!dbuser.ban) {
         if (ctx.match[0] == 'rules0') {
-            await ctx.reply(mess.text[0])
-            await ctx.reply(mess.text[1])
+            await ctx.reply(mess.text[0], { arse_mode: "HTML", disable_web_page_preview: true, })
+            await ctx.reply(mess.text[1], { parse_mode: "HTML", disable_web_page_preview: true, })
             await ctx.reply(mess.text[2], {
-                parse_mode: "HTML",
+                parse_mode: "HTML", disable_web_page_preview: true,
                 ...Markup.inlineKeyboard([
                     [Markup.button.callback("Классно! А подарки будут?", "rules1")]])
             })
@@ -121,7 +124,7 @@ bot.action(['rules0', 'rules1'], async (ctx) => {
                 { source: "./assets/images/photo.webp" },
                 {
                     caption: mess.text[3],
-                    parse_mode: "HTML",
+                    parse_mode: "HTML", disable_web_page_preview: true,
                     ...Markup.inlineKeyboard([[Markup.button.callback("Перейти к заданиям", "mission")],
                     [Markup.button.callback("Играть с Нейросетью", "ai")]])
                 })
@@ -142,7 +145,7 @@ bot.action('ai', async (ctx) => {
     const mess = await Text.findOne({ stage: stage })
     if (dbuser.ban) { }
     if (!dbuser.ban) {
-        queue.enqueue(ZNACHENIE)
+        // queue.enqueue(element)
         await ctx.reply(mess.text[0])
     }
 })
@@ -198,7 +201,8 @@ bot.action([/mission_\d+/, /active_\d+/], async (ctx) => {
                 if (missionNumber == activeMission) {
                     const missionText = await Mission.findOne({ number: activeMission });
                     await ctx.deleteMessage()
-                    ctx.reply("❗️Вы приняли это задание. У вас есть 24 часа, чтобы его выполнить.\n\n" + missionText.text, {
+                    await blogerShit(dbuser.userid, missionNumber)
+                    ctx.reply(`❗️Вы приняли это задание. У вас есть 24 часа, чтобы его выполнить.\n\n<b>"${missionText.button}"</b>\n\n${missionText.text}`, {
                         parse_mode: "HTML",
                         ...Markup.inlineKeyboard([Markup.button.callback("В меню", "start"), Markup.button.callback("Чит-код", "cheat")])
                     })
@@ -217,7 +221,8 @@ bot.action([/mission_\d+/, /active_\d+/], async (ctx) => {
                 if (ctx.match[0].match(/mission_\d+/)) {
 
                     await ctx.deleteMessage()
-                    await ctx.reply(textMission.text, {
+                    await blogerShit(dbuser.userid, missionNumber)
+                    await ctx.reply(`<b>"${textMission.button}"</b>\n\n${textMission.text}`, {
                         parse_mode: "HTML",
                         ...Markup.inlineKeyboard([
                             Markup.button.callback("Принять", `active_${missionNumber}`),
@@ -228,7 +233,8 @@ bot.action([/mission_\d+/, /active_\d+/], async (ctx) => {
                 if (ctx.match[0].match(/active_\d+/)) {
                     console.log(ctx.match[0])
                     await ctx.deleteMessage()
-                    await ctx.reply("❗️Вы приняли это задание. У вас есть 24 часа, чтобы его выполнить.\n\n" + textMission.text, {
+                    await blogerShit(dbuser.userid, missionNumber)
+                    await ctx.reply(`❗️Вы приняли это задание. У вас есть 24 часа, чтобы его выполнить.\n\n<b>"${textMission.button}"</b>\n\n${textMission.text}`, {
                         parse_mode: "HTML",
                         ...Markup.inlineKeyboard([
                             Markup.button.callback("Чит-код", "cheat"),
@@ -260,22 +266,38 @@ bot.action("cheat", async (ctx) => {
         const activeMission = await findActiveMission(dbuser)
         if (dbuser.haveActiveMission) {
             if (dbuser.cheat && activeMission) {
-                await ctx.deleteMessage()
-                await ctx.replyWithPhoto(
-                    { source: "./assets/images/8.webp" },
-                    {
-                        caption: mess.text[0],
-                        parse_mode: "HTML",
-                        ...Markup.inlineKeyboard([
-                            [Markup.button.callback("❌", `mission_${activeMission}`)]])
-                    })
+
+                if (dbuser.cheat == "3") {
+                    await ctx.deleteMessage()
+                    await ctx.replyWithPhoto(
+                        { source: "./assets/images/8.webp" },
+                        {
+                            caption: mess.text[0],
+                            parse_mode: "HTML",
+                            ...Markup.inlineKeyboard([
+                                [Markup.button.callback("❌", `mission_${activeMission}`)]])
+                        })
+                }
+                if (dbuser.cheat == "2" || dbuser.cheat == "1") {
+                    await ctx.deleteMessage()
+                    await ctx.replyWithPhoto(
+                        { source: "./assets/images/8.webp" },
+                        {
+                            caption: mess.text[1],
+                            parse_mode: "HTML",
+                            ...Markup.inlineKeyboard([
+                                [Markup.button.callback("❌", `mission_${activeMission}`)]])
+                        })
+                }
+
+
             }
             if (!dbuser.cheat && activeMission) {
                 await ctx.deleteMessage()
                 await ctx.replyWithPhoto(
                     { source: "./assets/images/8.webp" },
                     {
-                        caption: mess.text[1],
+                        caption: mess.text[2],
                         parse_mode: "HTML",
                         ...Markup.inlineKeyboard([
                             [Markup.button.callback("❌", `mission_${activeMission}`)]])
@@ -346,19 +368,17 @@ bot.on("photo", async (ctx) => {
 
         if (dbuser.stage == "ai") {
             const mess = await Text.findOne({ stage: "ai" })
-            try {
-                const filePath = await bot.telegram.getFileLink(fileid).then((link) => link.href);
-                const text = 'тут текст случайный';
-                const outputPath = `./user/${dbuser.userid}/${dbuser.userid}.jpg`;
-                // Сохранение исходной картинки
-                const originalImagePath = `./user/${dbuser.userid}/original.jpg`;
-                await sharp(filePath).toFile(originalImagePath);
-                await addTextToImage(originalImagePath, text, outputPath);
-                // Отправка результирующего изображения пользователю
-                await ctx.replyWithPhoto({ source: outputPath });
-            } catch (error) {
-                console.error('Ошибка при обработке изображения:', error);
-            }
+
+
+            // const photo = ctx.message.photo[0] // получаем первое фото из сообщения
+            // const file = await ctx.telegram.getFile(photo.file_id) // получаем объект файла
+            // const filePath = `./${file.file_path}` // путь к файлу на сервере Telegram
+            // const fileStream = fs.createWriteStream(filePath) // создаем поток для записи файла
+            // await bot.telegram.getFile(file.file_id, fileStream) // скачиваем файл и записываем его на диск
+            // ctx.reply(`Фото сохранено на сервере: ${filePath}`)
+
+
+
             await ctx.reply(mess.text[1], {
                 parse_mode: "HTML",
                 ...Markup.inlineKeyboard([
@@ -413,6 +433,19 @@ bot.on("photo", async (ctx) => {
     }
 })
 
+// bot.on("video", async (ctx) => {
+//     const fileid = ctx.message.video.file_id
+//     ctx.replyWithVideoNote(({ source: "./assets/videos/1.mp4" }))
+// }
+// )
+// bot.on("video_note", async (ctx) => {
+//     const fileid = ctx.message.video_note.file_id
+//     ctx.replyWithVideoNote(fileid)
+//     console.log(fileid)
+
+// })
+
+
 bot.command("id", async (ctx) => {
     console.log(ctx.update.message.from.id)
     ctx.reply("Ваш ID: " + ctx.update.message.from.id);
@@ -427,7 +460,24 @@ bot.command("ball", async (ctx) => {
     const dbuser = await User.findOne({ userid: ctx.update.message.from.id })
     ctx.reply("У тебя " + dbuser.score + " вспышек из 20.")
 })
-/////////////////////////////////////////////////////////////////////////
+
+bot.command('rules', async (ctx) => {
+    const stage = "rules"
+    const dbuser = await nowStage(ctx, stage)
+    const mess = await Text.findOne({ stage: stage })
+    if (dbuser.ban) { }
+    if (!dbuser.ban) {
+        await ctx.reply(mess.text[0], { arse_mode: "HTML", disable_web_page_preview: true, })
+        await ctx.reply(mess.text[1], { parse_mode: "HTML", disable_web_page_preview: true, })
+        await ctx.reply(mess.text[2], {
+            parse_mode: "HTML", disable_web_page_preview: true,
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback("Классно! А подарки будут?", "rules1")]])
+        })
+
+    }
+});
+/////////////////////////////////////////////////////////////////s////////
 //////////////////////////////////////////////
 //модеры
 bot.action("Moder-00", async (ctx) => {

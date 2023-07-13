@@ -87,7 +87,7 @@ export async function sendMessageNow(userId, i, text) {
     const a = Math.floor(Math.random() * i)
     // //console.log(message.que.image + i[a])
     if (i == 2) {
-        // bot.telegram.sendMessage(userId, text)
+        bot.telegram.sendMessage(userId, text)
         await new Promise((r) => setTimeout(r, 150));
         // bot.telegram.sendMessage(userId, message.text[i])
         const a = Math.floor(Math.random() * 2) + 2
@@ -102,7 +102,7 @@ export async function sendMessageNow(userId, i, text) {
     }
 
     if (i == 3) {
-        // bot.telegram.sendMessage(userId, text)
+        bot.telegram.sendMessage(userId, text)
         await new Promise((r) => setTimeout(r, 150));
         // bot.telegram.sendMessage(userId, message.text[i])
         const a = Math.floor(Math.random() * 2) + 5
@@ -117,7 +117,7 @@ export async function sendMessageNow(userId, i, text) {
     }
 
     if (i == 4) {
-        // bot.telegram.sendMessage(userId, text)
+        bot.telegram.sendMessage(userId, text)
         await new Promise((r) => setTimeout(r, 150));
         // bot.telegram.sendMessage(userId, message.text[i])
         bot.telegram.sendMediaGroup(userId, [
@@ -131,7 +131,7 @@ export async function sendMessageNow(userId, i, text) {
     }
 
     if (i == 5) {
-        // bot.telegram.sendMessage(userId, text)
+        bot.telegram.sendMessage(userId, text)
         await new Promise((r) => setTimeout(r, 150));
         // bot.telegram.sendMessage(userId, message.text[i])
         bot.telegram.sendMediaGroup(userId, [
@@ -275,3 +275,28 @@ export async function checkForPormo(userid, mission) {
     }
 };
 
+export async function blogerShit(userid, numberMission) {
+    const pics = [];
+    // if (numberMission == "5" || numberMission == "9" || numberMission == "14") {
+    if (numberMission == "5") {
+        const mission = await Mission.findOne({ number: numberMission });
+        const circleVideoNote = mission.circle;
+        const picPath = mission.pic;
+
+
+        //await bot.telegram.sendVideoNote(userid, circleVideoNote);
+
+        for (let i = 1; i <= 5; i++) {
+            const imagePath = `${picPath}${i}.webp`;
+            try {
+                pics.push({ type: 'photo', media: { source: imagePath } });
+            } catch (error) {
+                continue;
+            }
+        }
+
+        console.log(pics)
+        await bot.telegram.sendMediaGroup(userid, pics);
+    }
+
+}
